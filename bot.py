@@ -39,7 +39,7 @@ bot_intents.message_content = True
 bot = commands.Bot(command_prefix='+', intents = bot_intents) #, help_command=None)
 
 # Set up the UI class with the created bot
-#ui = UI(bot)
+#ui = UI(bot) # <--- bad
 
 # Function which runs once the bot has connected to a client guild.
 @bot.event
@@ -49,7 +49,7 @@ async def on_ready():
 	# Finds a reference to this guild by checking which of the guilds this bot is connected to shares the GUILD env name.
 	guild = discord.utils.get(bot.guilds, name=GUILD)
 	
-	# A bit funky formatting, but this prints out to command line the guild the bot is connected to.
+	# A bit funky syntax, but this prints out to command line the guild the bot is connected to.
 	print(
 		f'\n'
 		f'{bot.user} is connected to the following guild:\n'
@@ -59,6 +59,50 @@ async def on_ready():
 	# Finds a specified channel and sends a message.
 	channel = discord.utils.get(guild.channels, name=IN_CHANNEL)
 	await channel.send("Ready to go.")
+
+################################################### BUTTONS ####################################################
+
+# Subclassing! For better Button defining.
+class ChooseCharButton(Button):
+	# Define some attributes for the button.
+	other_potentials = [] # Contains the other possible characters which are not associated with this button. 
+	turn_num = -1 # due to scoping, this number has to be ferried around.
+	
+	# Override the init method.
+	def __init__(self, button_char, potentials, turn_num):
+		# Directly initialize the parent class.
+		super().__init__(label = button_char, style = discord.ButtonStyle.primary, emoji = "❓")
+		self.other_potentials = [pots for pots in potentials if pots[0] != self.label]
+		self.turn_num = turn_num
+
+		print(self.other_potentials)
+
+	# Define the callback method.
+	async def callback(self, interaction):
+
+		# Get rid of the button, now that it's been pressed.
+		await interaction.response.edit_message(view = None)
+
+		#.followup returns a webhook, which has a different method for sending messages.
+		await interaction.followup.send(content = "You chose " + self.label) 
+
+		# Set turn to equal the character the user chose.
+		# Somehow prevent the character the user chose from being an option in the next turn
+		#
+
+
+'''
+# Alternatively, view subclassing?
+class ControlPanelView(View):
+	
+	# Use a decorator to make our button!
+	@discord.ui.button(label = "hi", style = discord.ButtonStyle.primary, emoji = "❓")
+	async def choose_char_callback(self, button, interaction):
+
+		# Get rid of the button, now that it's been pressed.
+		await interaction.response.edit_message(view = None)
+		await interaction.followup.send_message("Hiiiiiii")
+'''
 
 #################################################### BATTLE ####################################################
 
@@ -74,40 +118,25 @@ async def on_ready():
 	# embed sent to OUT_CHANNEL which says who's turn it is
 # ctrl panel
 
+# System Flow:
+# battleControlPanel() starts, setting everything up
+# whosGoing() gets called, which creates buttons to call the next function, or 
 
-# This handles both user input for dictacting the flow of battle, as well as calculating combat results and outputting to the player channel.
-# Parameters are the original context the initial command was sent from, and the interation from the button
-async def battleControlPanel(controlCtx, interacted, battle_num):
-	
-	print("Control panel up!")
+# Function to build the section of the control panel which appears in every embed (basically, the current status of the battlefield). Returns an embed.
+async def buildCtrlPanelPrefab(team1, team2, turn_num, battle_size):
 
-	# Setup the channels:
-	guild = controlCtx.guild
-	controlChannel = discord.utils.get(guild.channels, name=IN_CHANNEL)
-	playerChanel = discord.utils.get(guild.channels, name=OUT_CHANNEL)
-
-	# Set up the Battle object
-	curr_battle = command_list.getBattle(int(battle_num))
-
-	# If we couldn't find the battle, something terribly wrong happened.
-	if curr_battle is None:
-		print("exit ctrl panel early")
-		return None
-
-	team1 = curr_battle.team1
-	team2 = curr_battle.team2
-
-	#embed_title = "Character "
 	embed_colour = discord.Color.red()
-	#fields = None
 
 	# Build the control panel embed which we'll be editing around a bunch.
-	ctrlPanel = discord.Embed(title = "CONTROL PANEL", description = "Battlefield Status:", color = embed_colour)
+	ctrlPanel = discord.Embed(title = "CONTROL PANEL", description = "TURN " + str(turn_num) + ", ROUND " + str(turn_num / battle_size), color = embed_colour)
 
+	# Tell python that the fields variable is a list (so that it doesn't complain when I .append to it).
 	fields = []
 
 	#fields.append(["HP:", details[3], True])
 	#[name, nums, basics, el_reacts]
+	print("Team1:", team1.members)
+	print("Team2:", team2.members)
 
 	# Create a field for every character in team 1.
 	for character in team1.members:
@@ -124,48 +153,110 @@ async def battleControlPanel(controlCtx, interacted, battle_num):
 	fields.append(['\u200b', '\u200b', False])
 
 	# Fields are just a nice way to format things.
-	if fields is not None:
+	if fields is not None: #TODO: double check if fields can ever actually be None (since I define it as = []?)
 		for field in fields:
 			# field = [title, contents, inline_bool]
 			ctrlPanel.add_field(name = field[0], value = field[1], inline = field[2])
 
-	# Build a default embed prefab to make sending to OUT_CHANNEL easier.
-	#TODO
+	return ctrlPanel
 
-	# Combat turns are measured by combatProgress
-	combatProgress = 0
+
+# STEP TWO for a turn:
+async def chooseYourMove()
+
+# STEP ONE for a turn:
+async def chooseYourCharacter(controlChannel, ctrlPanelEmbed, turn, turn_num):
+	# If there are multiple options for who's going next...
+	if len(turn) > 1:
+		# Then we need to provide the user a few buttons to choose which to press.
+
+		# Add a new field that explains to the user why there are multiple options here.
+		ctrlPanelEmbed.add_field(name = "Two or more characters have tied MOB!", value = "Please choose which one goes first.", inline = False)
+
+		# Create a view that our buttons will be held in.
+		controlPanelView = View(timeout=None)
+
+		# Iterate through the optional characters and create buttons for each:
+		for option in turn:
+				
+			# Add the option to the embed.
+			ctrlPanelEmbed.add_field(name = option[0], value = "MOB of " + str(option[2][3]), inline = True)
+
+			# Create a button!
+			char_button = ChooseCharButton(option[0], turn, turn_num)
+
+			# Add the button to the view.
+			controlPanelView.add_item(char_button)
+
+		# Sent our embed with the new view inside it, which will show the button!
+		await controlChannel.send(embed = ctrlPanelEmbed, view = controlPanelView)
+
+	# Otherwise, just move on with the one option that's left to choose.
+	else:
+		# TODO
+		pass
+
+# This handles both user input for dictacting the flow of battle, as well as calculating combat results and outputting to the player channel.
+# Parameters are the original context the initial command was sent from, and the number of the battle.
+async def battleControlPanel(controlCtx, battle_num): #ctrlPanelView, battle_num): #interacted, battle_num):
+	
+	print("Control panel up!")
+
+	# Setup the channels:
+	guild = controlCtx.guild
+	controlChannel = discord.utils.get(guild.channels, name=IN_CHANNEL)
+	playerChanel = discord.utils.get(guild.channels, name=OUT_CHANNEL)
+
+	# Set up the Battle object
+	curr_battle = command_list.getBattle(int(battle_num))
+
+	# If we couldn't find the battle, something terribly wrong happened.
+	if curr_battle is None:
+		print("exit ctrl panel early")
+		return None
+
+	# Might not be a necessary declaration. Could refactor so that the battle is the only thing ever passed around between functions...
+	team1 = curr_battle.team1
+	team2 = curr_battle.team2
+
+	# Combat turns are measured by combatProgress # TODO: refactor this to turn_nums or something
+	combat_progress = 0
+
+	# Build a default embed prefab to make sending to OUT_CHANNEL easier.
+	ctrlPanelEmbed = await buildCtrlPanelPrefab(team1, team2, combat_progress, curr_battle.size)
 
 	# Find who's first!
-	turn = whosFirst(battle)
+	turn = combat_calc.whosFirst(curr_battle) #reminder: returns a list of [name, nums, basics, el_reacts, creature] lists.
 
 	# The main UI loop which loops after a character has taken a turn.
-	while combatProgress > -1:
+	while combat_progress > -1:
 		
+		# Provide the user options for which character goes next.
+		await chooseYourCharacter(controlChannel, ctrlPanelEmbed, turn, combat_progress)
+
+		
+
+
+		# Create an embed & view for the various moves the character can perform.
+		# chooseYourMove()
+
+		# Create an embed & view for the various targets the character can select.
+
+		CEASE_COMBAT = True
+		while CEASE_COMBAT is True:
+			# May need to put a lock right here until the buttons are pressed...
+			pass
+
+		# Call combat_calc and update the current battle's status. 
+		# letLooseYourAttack()
+
 		# Get the name of the character who's next.
-		turn = combat_calc.whosNext(curr_battle)
+		#turn = combat_calc.whosNext(turn[2][3])
 
+		# Iterate!
+		combat_progress = -1
 
-		
-		
-		new_embed = discord.Embed(title = embed_title, description = response, color = embed_colour)
-
-
-		#await interaction.response.send_message("Hi!")
-
-		# At end of loop, post both embeds!
-		await controlChannel.send(embed = ctrlPanel)
-
-
-
-
-
-	
-
-
-
-
-
-#################################################### Bot Commands: ####################################################
+#################################################### Bot Commands ####################################################
 
 # Help command
 '''@bot.command(name='help')
@@ -179,7 +270,6 @@ async def interruptCombat(ctx):
 	# unimplemented
 	pass
 
-
 # For quick startup testing, without having to type 3 commands
 @bot.command(name='debugstart')
 async def battleCommand(ctx, *args):
@@ -189,8 +279,8 @@ async def battleCommand(ctx, *args):
 	command_list.battleBuildTeam(["Build", "Team", "CIPHER", "SPYDER"])
 	command_list.battleBuildTeam(["Build", "Team", "SCEPTOR", "COMPASS"])
 	command_list.battleBuild(["Build", "Debug", 0, 1])
-	await channel.send("Teams and Battle built.")
-
+	#await channel.send("Teams and Battle built.")
+	await battleCommand(ctx, "start", "0")
 
 '''
 # For a quick scattershot System test, to find anything broken since upgrading to discord.py 2.0
@@ -199,7 +289,7 @@ async def battleCommand(ctx, *args):
 	guild = ctx.guild
 	channel = discord.utils.get(guild.channels, name=IN_CHANNEL)
 
-	listCharsCommand(ctx, *args):
+	listCharsCommand(ctx, *args):debug
 '''
 
 # Command for dealing with characters specifically (and their database interactions).
@@ -318,16 +408,21 @@ async def battleCommand(ctx, *args):
 	# If we started a battle, the battleMsg was sent, so we need to fire up the battleControlPanel().
 	if battleMsg is not None:
 		
-		# This bit could probably be extracted to another function...
+		# TODO: This bit could probably be extracted to another function...
 
 		# Create the base of a button which will start the battle.
 		start_button = Button(label = "Start Battle", style = discord.ButtonStyle.primary, emoji = "⚔")
 		
 		# Implement the callback, which seems to be what occurs on button press.
 		async def sbutton_callback(interaction):
-			#await interaction.response.send_message("Hi!")
+			# Get rid of the start button, now that it's been pressed.
+			#controlPanelView.remove_item(start_button)
+
+			# This ALSO removes the start button.
 			await interaction.response.edit_message(view = None)
-			await battleControlPanel(ctx, interaction, args[1])
+
+			# Call the coroutine to start the control panel shenanigans!
+			await battleControlPanel(ctx, args[1])
 
 		# Set the callback as the callback we created.
 		start_button.callback = sbutton_callback
@@ -359,123 +454,42 @@ async def battleCommand(ctx, *args):
 # This starts the bot.
 bot.run(TOKEN)
 
-# Here's some code generated off of an online embed builder (https://autocode.com/tools/discord/embed-builder/)
-# Not as intelligent as I was hoping, but it'll be helpful to look at, hopefully.
-'''
-const lib = require('lib')({token: process.env.STDLIB_SECRET_TOKEN});
 
-await lib.discord.channels['@0.3.0'].messages.create({
-  "channel_id": `${context.params.event.channel_id}`,
-  "content": `Combat progresses...`,
-  "tts": false,
-  "components": [
-    {
-      "type": 1,
-      "components": [
-        {
-          "style": 1,
-          "label": `Snowden`,
-          "custom_id": `row_0_button_0`,
-          "disabled": false,
-          "emoji": {
-            "id": null,
-            "name": `🔫`
-          },
-          "type": 2
-        },
-        {
-          "style": 1,
-          "label": `Observe`,
-          "custom_id": `row_0_button_1`,
-          "disabled": false,
-          "emoji": {
-            "id": null,
-            "name": `💥`
-          },
-          "type": 2
-        },
-        {
-          "style": 2,
-          "label": `Guard`,
-          "custom_id": `row_0_button_2`,
-          "disabled": false,
-          "emoji": {
-            "id": null,
-            "name": `🛡`
-          },
-          "type": 2
-        }
-      ]
-    },
-    {
-      "type": 1,
-      "components": [
-        {
-          "style": 4,
-          "label": `Redo Last Turn`,
-          "custom_id": `row_1_button_0`,
-          "disabled": false,
-          "emoji": {
-            "id": null,
-            "name": `🔁`
-          },
-          "type": 2
-        }
-      ]
-    }
-  ],
-  "embeds": [
-    {
-      "type": "rich",
-      "title": `Edward's Turn`,
-      "description": `HP: 60/60\nSP: 30/30\n\nYou are currently STRENGTHENED\n\nBattlefield status:`,
-      "color": 0x00FFFF,
-      "fields": [
-        {
-          "name": `Bob`,
-          "value": `59/60, [STREN]`,
-          "inline": true
-        },
-        {
-          "name": `Alice`,
-          "value": `60/60, [CHARGE]`,
-          "inline": true
-        },
-        {
-          "name": `Greg`,
-          "value": `60/60`,
-          "inline": true
-        },
-        {
-          "name": `Sandy`,
-          "value": `60/60`,
-          "inline": true
-        },
-        {
-          "name": `Edward`,
-          "value": `60/60, [STREN]`,
-          "inline": true
-        },
-        {
-          "name": `Clarck`,
-          "value": `60/60`,
-          "inline": true
-        },
-        {
-          "name": `Marie`,
-          "value": `60/60`,
-          "inline": true
-        },
-        {
-          "name": `Kyle`,
-          "value": `56/60, [WEAK]`,
-          "inline": true
-        }
-      ],
-      "footer": {
-        "text": `Tensions rise as wills collide. Who will fate favour this time?`
-      }
-    }
-  ]
-});
+
+# Old code that I can't get rid of just yet, just in case...
 '''
+
+		# If there are multiple options for who's going next...
+		if len(turn) > 1:
+			# Then we need to provide the user a few buttons to choose which to press.
+
+			# Add a new field that explains to the user why there are multiple options here.
+			ctrlPanelEmbed.add_field(name = "Two or more characters have tied MOB!", value = "Please choose which one goes first.", inline = False)
+
+			# Create a view that our buttons will be held in.
+			controlPanelView = View(timeout=None)
+
+			# Iterate through the optional characters and create buttons for each:
+			for option in turn:
+				
+				# Add the option to the embed.
+				ctrlPanelEmbed.add_field(name = option[0], value = "MOB of " + str(option[2][3]), inline = True)
+
+				# Create the base of a button which will start the battle.
+				#char_button = Button(label = option[0], style = discord.ButtonStyle.primary, emoji = "❓")
+		
+				# Create a button!
+				char_button = ChooseCharButton(option[0])
+
+				
+
+				# Set the callback as the callback we created.
+				#char_button.callback = choose_char_callback
+
+				# Add the button to the view.
+				controlPanelView.add_item(char_button)
+
+			# Sent our embed with the new view inside it, which will show the button!
+			await controlChannel.send(embed = ctrlPanelEmbed, view = controlPanelView)
+
+		'''

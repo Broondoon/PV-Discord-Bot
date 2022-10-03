@@ -8,20 +8,26 @@
 ############### Internal Commands #################
 
 # Function to return a list of characters with the same MOB stat.
-# Also take into consideration 'protag's and regular enemies.
-def multipleMOBOptions(battle, first_char):
+# Also take into consideration any protag's versus regular enemies.
+def sameMOB(battle, first_char):
 	
 	target_MOB = first_char[2][3]
+	same_list = []
 
 	# Now find any other protagonists with the same speed stat.
 	# Quick loop over both teams to avoid code duplication.
 	for team in (battle.team1, battle.team2):
 		# For every character...
-		for member in team.members:
+		for member in team.members:	
+			# If they have the same MOB stat:
+			if member[2][3] == target_MOB:
+				# Append to the list.
+				same_list.append(member)
 
-	pass
+	# Return what should be the list of every character with the same MOB stat, INCLUDING the original character.
+	return same_list
 
-# Function to establish a baseline fastest character.
+# Function to establish a baseline fastest character. Should only be called once per Battle.
 def whosFirst(battle):
 	
 	# Default fastest is team1's first member
@@ -32,7 +38,7 @@ def whosFirst(battle):
 	for team in (battle.team1, battle.team2):
 		# For every character...
 		for member in team.members:
-		
+			# REMINDER - The contents of members: [name, nums, basics [str, int, end, mob], el_reacts, creature]
 			# Check if they're faster than the fastest character.
 			if member[2][3] > fastest_member[2][3]:
 				# If the current member's MOB stat is higher, they become the fastest.
@@ -41,11 +47,14 @@ def whosFirst(battle):
 				# If the current member has equal MOB, protags take precedence.
 				fastest_member = member
 
+	# Return what should now be the fastest member of a battle, and the characters with the same MOB.
+	return sameMOB(battle, fastest_member)
+
 	
 	
 
 # Determines who should act next, given the mobility of the current character
-def whosNext():
+def whosNext(curr_MOB):
 	pass
 
 # Determine what skills a player / monster can choose from this  turn

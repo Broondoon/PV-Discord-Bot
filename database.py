@@ -64,6 +64,13 @@ def verifyExists(char):
 def saveNewCharacter(name, type, stats, elem_reacts):
 	pass
 
+# Given a name, return
+def showMeYourMoves(name):
+	if verifyExists(name):
+		pass
+	else:
+		return None
+
 # Given a name, query the table for the associated character and return the results.
 def getCharFull(name):
 	if verifyExists(name):
@@ -100,12 +107,16 @@ def getCharStats(name, desired):
 	else:
 		return None
 
+# If any changes need to be made to the database, the code within this 
 if (DB_PRESENT == 0):
 	with con:
 		
+		# Remove these comments if you need to wipe and rebuild the database.
 		#con.execute("DROP TABLE Character")
+		con.execute("DROP TABLE SignificantBonds")
+		#con.execute("DROP TABLE AvailableMoves")
 		
-		# Create the table if it does not exist already!
+		# Create the basic Character table if it does not exist already!
 		con.execute("""
 			CREATE TABLE IF NOT EXISTS Character (
 				id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -130,21 +141,26 @@ if (DB_PRESENT == 0):
 			);
 		""")
 
+		# A table which connects the ids of two characters, each pair denotes two characters which can perform a Showtime Attack together.
 		con.execute("""
 			CREATE TABLE IF NOT EXISTS SignificantBonds (
-				id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+				bond_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+				char1_id INTEGER FOREIGN KEY,
+				char2_id INTEGER FOREIGN KEY
+			);
+		""")
+
+		# A table which is in a many-to-one relationship with the Character table
+		# TODO
+		con.execute("""
+			CREATE TABLE IF NOT EXISTS AvailableMoves (
+				move_name TEXT
 				char1 TEXT,
 				char2 TEXT
 			);
 		""")
 
-		'''
-		print("BEFORE:")
-		data = con.execute("SELECT * FROM Character")
-		for row in data:
-			print(row)
-		print("\nAFTER:")
-		'''
+		# TODO: test if / needs to be // for SQLite...
 
 		# Create tuples and place them into the table, checking first if they already exist within the table.
 		# + Strengthen, - Weaken, @ Resist, # Immune, * Absorb, ^ Reflect, / Break, 'n' None
@@ -155,7 +171,8 @@ if (DB_PRESENT == 0):
 			(2, 'SPYDER', 'protag', 'machine', 60, 30, 0, 1, 0, 0, 'n', '+', 'n', '-', '+@', 'n', '-', 'n', 'n'),
 			(3, 'SCEPTOR', 'player protag', 'ice', 60, 30, 0, 0, 0, 1, 'n', '-', 'n', 'n', 'n', '+', 'n', '+@', '-'),
 			(4, 'COMPASS', 'protag', 'fossil', 60, 30, 0, 0, 0, 1, 'n', 'n', '-', 'n', 'n', 'n', '+', '-', '+@'),
-			(999, 'IMMOVABLE GONZALES', 'monster', 'physical', 99, 0, 10, 0, 10, 0, '#', '@', '@', '@', '@', '@', '@', '@', '@',)
+			(20, 'POUNCING CONSTRUCT', 'monster', 'none', 30, 15, 0, 0, 0, 2, '-//', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n'),
+			(999, 'IMMOVABLE GONZALES', 'monster', 'physical', 99, 0, 10, 0, 10, 0, '#', '@', '@', '@', '@', '@', '@', '@', '@')
 		]
 		for row in data_might_add:
 			if verifyExists(row[1]) is False:

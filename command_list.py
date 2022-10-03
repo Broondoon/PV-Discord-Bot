@@ -21,13 +21,15 @@ teams = [] # list of current active teams
 # Simple definition for a Team object
 class Team:
 	num = -1
-	members = []
+	members = [] # [name, nums, basics, el_reacts, creature]
 	def __init__(self, num, chars):
 		self.num = num
 		#self.members = chars
 
 		# When creating a team, extract the relevant info from the database.
 		for name in chars:
+
+			print("Building team... Name is:", name)
 
 			# Query the database to get the various stats.
 			nums = db.getCharStats(name, "nums") #hp, sp
@@ -42,6 +44,7 @@ class Team:
 class Battle:
 	num = -1
 	name = "Default"
+	size = 0
 	team1 = Team(-1, [])
 	team2 = Team(-1, [])
 	def __init__(self, num, name, team1, team2):
@@ -49,6 +52,7 @@ class Battle:
 		self.name = name
 		self.team1 = team1
 		self.team2 = team2
+		self.size = len(team1.members) + len(team2.members)
 
 in_progress = 0
 
@@ -79,12 +83,7 @@ def battle():
 
 	return fields
 
-#"Tensions rise as wills collide. Which way will the scales turn?"
-
 ###### Commands:
-
-# Needed commands:
-#  character details <charname> (shows stats for a hard-coded character)
 
 def help():
 	pass
@@ -161,6 +160,7 @@ def battleReadyTeams():
 	else:
 		for team in teams:
 			response += "Team " + str(team.num) + ":\n"
+			#print("Team members in team", team.num, ": ", team.members)
 			for char in team.members:
 				response += " - " + char[0] + "\n"
 			response += "\n"
@@ -230,6 +230,8 @@ def battleBuildTeam(args):
 	response = ""
 	chars = args[2:] # slice list to ignore 'build' and 'team' arguments
 	cannot_complete = False # flag for if one or more characters don't exist
+
+	print("Chars:", chars)
 
 	# For every provided character, verify if they are present in the database
 	try:
